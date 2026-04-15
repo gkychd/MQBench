@@ -75,17 +75,39 @@ def convert_onnx(model: GraphModule, input_shape_dict, dummy_input, onnx_model_p
         dummy_input = tuple(dummy_input.values())
     # Per-channel QuantizeLinear and DequantizeLinear is supported since opset 13
     opset_version = 13 if kwargs.get('deploy_to_qlinear', False) else 13
+    model.eval()
     with torch.no_grad():
         # try:
         #     from torch.onnx.utils import ONNXCheckerError
         #     try:
-        torch.onnx.export(model, dummy_input, onnx_model_path,
-                          input_names=input_names,
-                          output_names=output_names,
-                          opset_version=opset_version,
-                          dynamic_axes=dynamic_axes,
-                          do_constant_folding=True,
-                          custom_opsets={'' : opset_version})
+        from torch.onnx import OperatorExportTypes, TrainingMode
+        # Try with full严格 OFF for PyTorch 2.11 compatibility
+        try:
+            # First try: legacy TorchScript path
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                torch.onnx.export(model, dummy_input, onnx_model_path,
+                                  input_names=input_names,
+                                  output_names=output_names,
+                                  opset_version=opset_version,
+                                  do_constant_folding=True,
+                                  custom_opsets={'' : opset_version},
+                                  dynamo=False,
+                                  training=TrainingMode.EVAL,
+                                  operator_export_type=OperatorExportTypes.ONNX)
+        except Exception as e:
+            # Fallback: try with ONNX_FALLTHROUGH
+            logger.warning(f"First export attempt failed: {e}, trying ONNX_FALLTHROUGH mode")
+            torch.onnx.export(model, dummy_input, onnx_model_path,
+                              input_names=input_names,
+                              output_names=output_names,
+                              opset_version=opset_version,
+                              do_constant_folding=True,
+                              custom_opsets={'' : opset_version},
+                              dynamo=False,
+                              training=TrainingMode.EVAL,
+                              operator_export_type=OperatorExportTypes.ONNX_FALLTHROUGH)
 
 
         #     except ONNXCheckerError:
@@ -221,5 +243,8 @@ def  convert_deploy(model: GraphModule, backend_type: BackendType,
     }
     # kwargs.update(extra_kwargs)
     deploy_model = deepcopy_graphmodule(model)
+    print("已注册的后端:", list(BACKEND_DEPLOY_FUNCTION.keys()))
     for convert_function in BACKEND_DEPLOY_FUNCTION[backend_type]:
+        print(f"执行函数: {convert_function.__name__}")
         convert_function(deploy_model, **kwargs)
+    return deploy_model

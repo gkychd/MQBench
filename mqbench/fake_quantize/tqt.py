@@ -3,7 +3,13 @@ import torch
 from mqbench.fake_quantize.quantize_base import QuantizeBase
 from mqbench.utils import is_symmetric_quant
 import torch._C._onnx as _C_onnx
-from torch.onnx import _type_utils
+
+try:
+    from torch.onnx import _type_utils
+except ImportError:
+    _type_utils = None
+
+from torch.onnx import symbolic_opset9 as opset9
 
 class TqtFakeQuantize(QuantizeBase):
     def __init__(self, observer, scale=1., zero_point=0., **observer_kwargs):
@@ -120,11 +126,11 @@ class FakeQuantizeTqtAffine(torch.autograd.Function):
         else:
             zero_point = g.op("Cast", zero_point, to_i=_C_onnx.TensorProtoDataType.INT8)
         if (
-                _type_utils.JitScalarType.from_value(scale, _type_utils.JitScalarType.UNDEFINED)
+                (_type_utils.JitScalarType.from_value(scale, _type_utils.JitScalarType.UNDEFINED) if _type_utils is not None else False)
                 != _type_utils.JitScalarType.FLOAT
         ):
             scale = g.op("Cast", scale, to_i=_C_onnx.TensorProtoDataType.FLOAT)
-        quantized = g.op("QuantizeLinear", inputs, scale, zero_point)
+        quantized = g.op("QuantizeLinear", x, scale, zero_point)
         if (quant_min, quant_max) == (0, 127):
             quantized = g.op(
                 "Clip",

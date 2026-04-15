@@ -79,9 +79,11 @@ class ModelQuantizer(object):
         nodes = list(model.graph.nodes)
 
         quantizer_prefix = "_post_act_fake_quantizer"
+        # 1. 找出需要插入激活量化的节点
         node_to_quantize_output = self._find_act_quants(model)
         node_to_quantize_output = OrderedDict.fromkeys(node_to_quantize_output).keys()
 
+        # 2. 为每个节点插入 FakeQuantize 模块
         for node in node_to_quantize_output:
             fake_quantizer = qconfig.activation()
             quantizer_name = node.name + quantizer_prefix
@@ -126,8 +128,11 @@ class ModelQuantizer(object):
 
     def _weight_quant(self, model: GraphModule, qconfig, backend_config, freeze_bn):
         logger.info("Replace module to qat module.")
+        # 1. 将量化配置传播到模型各层
         flattened_qconfig_dict = get_flattened_qconfig_dict({'': qconfig})
         propagate_qconfig_(model, flattened_qconfig_dict)
+        # 2. 将普通 Module 替换为 QAT Module
+        # QAT Module 的特点：内置 weight_fake_quantizer，在前向传播时对权重进行量化
         self._qat_swap_modules(model, self.additional_qat_module_mapping, backend_config, freeze_bn)
         return model
 

@@ -4,8 +4,13 @@ from torch.nn.parameter import Parameter
 from mqbench.fake_quantize.quantize_base import QuantizeBase
 from mqbench.utils import is_symmetric_quant, is_tracing_state
 from mqbench.utils.hook import PerChannelLoadHook
+
+try:
+    from torch.onnx import _type_utils
+except ImportError:
+    _type_utils = None
+
 from torch.onnx import (
-    _type_utils,
     symbolic_helper,
     symbolic_opset9 as opset9,
 )
