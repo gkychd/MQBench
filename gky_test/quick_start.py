@@ -29,7 +29,7 @@ print("[INFO] Quantization nodes inserted.")
 # 2. 创建一些假数据用于校准（实际应用中应使用真实数据集）
 dummy_inputs = [torch.randn(8, 3, 224, 224) for _ in range(10)]  # 批量数据用于统计
 
-# 3. 开启校准模式 量化参数的计算在该步骤内
+# 3. 开启校准模式 切换状态
 # 启动校准统计 enable_observer()
 # 禁用实际量化 disable_fake_quant()
 enable_calibration(model)
@@ -45,9 +45,10 @@ with torch.no_grad():
 
 print("[INFO] Calibration completed.")
 
-# 5. 开启量化模式（此时 scale/zp 有了实际计算值）
+# 5. 开启量化模式 切换状态
 # 停止校准统计 disable_observer()
 # 开启量化 enable_fake_quant()
+# 此时会模型里会执行calculate_qparams，计算 scale/zp
 enable_quantization(model)
 print("[INFO] Quantization mode enabled.")
 
